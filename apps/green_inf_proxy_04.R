@@ -41,7 +41,14 @@ ui <- navbarPage("NYC Green Infrastructure",
                                            choices = levels(greenInf.load$borough),
                                            selected = "Bronx"),
                               # Number of projects
-                              textOutput("text")
+                              textOutput("text"),
+                              tags$br(),
+                              # Remove a Project
+                              disabled(actionButton("delete", "Remove Project", icon = icon("times"))),
+                              # Select a Project
+                              tags$br(), tags$br(),
+                              # Restore projects
+                              disabled(actionButton("restore", "Restore removed Projects", icon = icon("refresh")))
                             ),
                             mainPanel(
                               # Using Shiny JS
@@ -64,6 +71,7 @@ ui <- navbarPage("NYC Green Infrastructure",
 
 # Define server logic required to create a map
 server <- function(input, output) {
+   values <- reactiveValues(removed = c())
    # Basic Map
    output$leaflet <- renderLeaflet({
      leaflet() %>%
@@ -119,6 +127,22 @@ server <- function(input, output) {
        setView(lng = boros$x[1], lat = boros$y[1], zoom = 9)
    })
    output$table <- DT::renderDataTable(greenInfInputs()@data, options = list(scrollX = T))
+   # Enable button once a marker has been selected
+   observeEvent(input$leaflet_marker_click$id, {
+     enable("delete")
+   })
+   # Add layerID to list of removed projects
+   observeEvent(input$delete, {
+     enable("restore")
+     isolate({
+       values$removed <- c(values$removed, input$leaflet_marker_click$id)
+     })
+   })
+   # Reset removed Projects
+   observeEvent(input$restore, {
+     values$removed <- c()
+     disable("restore")
+   })
    # Subset to data Only on screen
    onScreen <- reactive({
       req(input$leaflet_bounds)
@@ -126,8 +150,7 @@ server <- function(input, output) {
       latRng <- range(bounds$north, bounds$south)
       lngRng <- range(bounds$east, bounds$west)
       
-      subset(greenInfInputs()@data, latitude >= latRng[1] & latitude <= latRng[2] &
-                longitude >= lngRng[1] & longitude <= lngRng[2])
+      subset(greenInfInputs()@data, latitude >= latRng[1] & latitude <= latRng[2] & longitude >= lngRng[1] & longitude <= lngRng[2])
    })
    # Print Projects
    output$text <- renderText({

@@ -10,6 +10,8 @@ library(rgeos)
 
 # Data Source: https://data.cityofnewyork.us/Environment/DEP-Green-Infrastructure/spjh-pz7h
 greenInf.load <- readOGR("https://data.cityofnewyork.us/api/geospatial/spjh-pz7h?method=export&format=GeoJSON")
+greenInf.load@data <- cbind(greenInf.load@data, coordinates(greenInf.load))
+names(greenInf.load@data)[c(30,31)] <- c("longitude", "latitude")
 boros.load <- readOGR("https://data.cityofnewyork.us/api/geospatial/tqmj-j8zm?method=export&format=GeoJSON")
 # Add Boro centroids to dataframe
 boros.load@data <- cbind(boros.load@data, rgeos::gCentroid(boros.load, byid = TRUE)@coords)

@@ -9,6 +9,8 @@ library(rgeos)
 
 # Data Source: https://data.cityofnewyork.us/Environment/DEP-Green-Infrastructure/spjh-pz7h
 greenInf.load <- readOGR("https://data.cityofnewyork.us/api/geospatial/spjh-pz7h?method=export&format=GeoJSON")
+greenInf.load@data <- cbind(greenInf.load@data, coordinates(greenInf.load))
+names(greenInf.load@data)[c(30,31)] <- c("longitude", "latitude")
 boros.load <- readOGR("https://data.cityofnewyork.us/api/geospatial/tqmj-j8zm?method=export&format=GeoJSON")
 # Add Boro centroids to dataframe
 boros.load@data <- cbind(boros.load@data, rgeos::gCentroid(boros.load, byid = TRUE)@coords)
@@ -38,6 +40,9 @@ ui <- navbarPage("NYC Green Infrastructure",
                                            "Borough Filter:",
                                            choices = levels(greenInf.load$borough),
                                            selected = "Bronx"),
+                              # Number of projects
+                              textOutput("text"),
+                              tags$br(),
                               # Remove a Project
                               disabled(actionButton("delete", "Remove Project", icon = icon("times"))),
                               # Select a Project
@@ -74,7 +79,6 @@ server <- function(input, output) {
        addProviderTiles(provider = providers$Wikimedia, group = "Wiki") %>%
        setView(-74.0060, 40.7128, 9) %>%
        addLayersControl(baseGroups = c("Google", "Wiki"))
-       
    })
    # Green Infrastructure Filtered data
    greenInfInputs <- reactive({
@@ -123,10 +127,6 @@ server <- function(input, output) {
        setView(lng = boros$x[1], lat = boros$y[1], zoom = 9)
    })
    output$table <- DT::renderDataTable(greenInfInputs()@data, options = list(scrollX = T))
-   # Print Inputs
-   observe({
-     print(reactiveValuesToList(input))
-   })
    # Enable button once a marker has been selected
    observeEvent(input$leaflet_marker_click$id, {
      enable("delete")
@@ -142,6 +142,20 @@ server <- function(input, output) {
    observeEvent(input$restore, {
      values$removed <- c()
      disable("restore")
+   })
+   # Subset to data Only on screen
+   onScreen <- reactive({
+      req(input$leaflet_bounds)
+      bounds <- input$leaflet_bounds
+      latRng <- range(bounds$north, bounds$south)
+      lngRng <- range(bounds$east, bounds$west)
+      
+      subset(greenInfInputs()@data, latitude >= latRng[1] & latitude <= latRng[2] &
+                longitude >= lngRng[1] & longitude <= lngRng[2])
+   })
+   # Print Projects
+   output$text <- renderText({
+      paste("You are viewing", nrow(onScreen()), "projects")
    })
 }
 
